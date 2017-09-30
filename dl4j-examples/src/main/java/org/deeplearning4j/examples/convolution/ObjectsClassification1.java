@@ -41,34 +41,21 @@ import java.util.Random;
 /**
  * Created by MakhrovSS on 24.03.2017.
  */
-public class ObjectsClassification {
-    protected static final Logger log = LoggerFactory.getLogger(ObjectsClassification.class);
-    // высотка изображения
+public class ObjectsClassification1 {
+    protected static final Logger log = LoggerFactory.getLogger(ObjectsClassification1.class);
     protected static int height = 64;
-    // ширина изображения
     protected static int width = 64;
-    // количество каналов = 3, так как R G B
     protected static int channels = 3;
-    // количество классов классификации
     protected static int numLabels = 7;
-    // размер батча
     protected static int batchSize = 20;
 
-    // инициализатор генератора случайных чисел
     protected static long seed = 42;
-    // задаем генератор случайных чисел
     protected static Random rng = new Random(seed);
-    // частота опроса состояния сети (как часто в консоли будет отражаться ход обучения или тестирования)
     protected static int listenerFreq = 1;
-    // количество итераций (прочитайте что такое итерация в контексте данного фреймворка https://deeplearning4j.org/core-concepts#training-a-model )
     protected static int iterations = 1;
-    // количество эпох
     protected static int epochs = 50;
-    // узазываем, какой процент из образов отвести на обучающую выборку. В данном случае - 80%
     protected static double splitTrainTest = 0.8;
-    // количество ядер процессора
     protected static int nCores = 8;
-    // сохранять ли состояние синаптических весов после обучения?
     protected static boolean save = false;
 
     public void run(String[] args) throws Exception {
@@ -81,7 +68,6 @@ public class ObjectsClassification {
          *  - pathFilter = define additional file load filter to limit size and balance batch content
          **/
         ParentPathLabelGenerator labelMaker = new ParentPathLabelGenerator();
-        // указываем путь к образам
         File mainPath = new File(System.getProperty("user.dir"), "dl4j-examples/src/main/resources/tiny/");
         FileSplit fileSplit = new FileSplit(mainPath, NativeImageLoader.ALLOWED_FORMATS, rng);
         RandomPathFilter pathFilter = new RandomPathFilter(rng, NativeImageLoader.ALLOWED_FORMATS, 0);
@@ -90,34 +76,29 @@ public class ObjectsClassification {
          * Data Setup -> train test split
          *  - inputSplit = define train and test split
          **/
-        // создаем две выборки - обучающая выборка - 80% образов, а тестовая - 20% образов из всех в папке с образами
         InputSplit[] inputSplit = fileSplit.sample(pathFilter, splitTrainTest, 1.0 - splitTrainTest);
-        InputSplit trainData = inputSplit[0]; // обучающая выборка
-        InputSplit testData = inputSplit[1]; // тестовая выборка
+        InputSplit trainData = inputSplit[0];
+        InputSplit testData = inputSplit[1];
 
         /**
          * Data Setup -> transformation
          *  - Transform = how to tranform images and generate large dataset to train on
          **/
-        // Определяем дополнительные трансформации изображений (отражения/ искажения), на которых также будет обучать сеть
         ImageTransform flipTransform1 = new FlipImageTransform(rng);
         ImageTransform flipTransform2 = new FlipImageTransform(new Random(123));
         ImageTransform warpTransform = new WarpImageTransform(rng, 42);
 //        ImageTransform colorTransform = new ColorConversionTransform(new Random(seed), COLOR_BGR2YCrCb);
-        // Создаем список трансформаций
         List<ImageTransform> transforms = Arrays.asList(new ImageTransform[]{flipTransform1, warpTransform, flipTransform2});
 
         /**
          * Data Setup -> normalization
          *  - how to normalize images and generate large dataset to train on
          **/
-        // Определяем объект, который нормализует/масштабирует изображения в один размер
         DataNormalization scaler = new ImagePreProcessingScaler(0, 1);
 
         log.info("Build model....");
 
-        // Присваиваем конфигурацию сети
-        MultiLayerNetwork network = alexnetModel();
+        MultiLayerNetwork network= alexnetModel();
         network.init();
         network.setListeners(new ScoreIterationListener(listenerFreq));
 
@@ -127,7 +108,6 @@ public class ObjectsClassification {
          *  - dataIter = a generator that only loads one batch at a time into memory to save memory
          *  - trainIter = uses MultipleEpochsIterator to ensure model runs through the data for all epochs
          **/
-        // Опредялем объект, который будет читать изображения
         ImageRecordReader recordReader = new ImageRecordReader(height, width, channels, labelMaker);
         DataSetIterator dataIter;
         MultipleEpochsIterator trainIter;
@@ -136,19 +116,14 @@ public class ObjectsClassification {
         log.info("Train model....");
         long timeX = System.currentTimeMillis();
         // Train without transformations
-        // Инициализируем объект для чтения изображений обучающей выборкой
         recordReader.initialize(trainData, null);
-        // Инициализируем итератор по обучающей выборке с указанием размера батча и количества классов
         dataIter = new RecordReaderDataSetIterator(recordReader, batchSize, 1, numLabels);
-        // масштабируем изображения
         scaler.fit(dataIter);
         dataIter.setPreProcessor(scaler);
-        // Инициализируем итератор по обучающей выборке с указанием количества эпох, итератора dataIter
         trainIter = new MultipleEpochsIterator(epochs, dataIter, nCores);
-        // Обучаем сеть
         network.fit(trainIter);
 
-        // Обучаем сеть на трансформациях
+        // Train with transformations
         for (ImageTransform transform : transforms) {
             System.out.print("\nTraining on transformation: " + transform.getClass().toString() + "\n\n");
             recordReader.initialize(trainData, transform);
@@ -163,7 +138,6 @@ public class ObjectsClassification {
 
         log.info("*** Training complete, time: {} ***", (timeY - timeX));
 
-        // Проверяем работу сети на обучающей выборке
         log.info("Evaluate model....");
         recordReader.initialize(testData);
         dataIter = new RecordReaderDataSetIterator(recordReader, batchSize, 1, numLabels);
@@ -263,8 +237,40 @@ public class ObjectsClassification {
 
     }
 
+    public MultiLayerNetwork lenetModel() {
+        /**
+         * Revisde Lenet Model approach developed by ramgo2 achieves slightly above random
+         * Reference: https://gist.github.com/ramgo2/833f12e92359a2da9e5c2fb6333351c5
+         **/
+        MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
+            .seed(seed)
+            .iterations(iterations)
+            .regularization(false).l2(0.005) // tried 0.0001, 0.0005
+            .activation(Activation.RELU)
+            .learningRate(0.0001) // tried 0.00001, 0.00005, 0.000001
+            .weightInit(WeightInit.XAVIER)
+            .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT)
+            .updater(Updater.RMSPROP).momentum(0.9)
+            .list()
+            .layer(0, convInit("cnn1", channels, 50 ,  new int[]{5, 5}, new int[]{1, 1}, new int[]{0, 0}, 0))
+            .layer(1, maxPool("maxpool1", new int[]{2,2}))
+            .layer(2, conv5x5("cnn2", 100, new int[]{5, 5}, new int[]{1, 1}, 0))
+            .layer(3, maxPool("maxool2", new int[]{2,2}))
+            .layer(4, new DenseLayer.Builder().nOut(500).build())
+            .layer(5, new OutputLayer.Builder(LossFunctions.LossFunction.NEGATIVELOGLIKELIHOOD)
+                .nOut(numLabels)
+                .activation(Activation.SOFTMAX)
+                .build())
+            .backprop(true).pretrain(false)
+            .setInputType(InputType.convolutional(height, width, channels))
+            .build();
+
+        return new MultiLayerNetwork(conf);
+
+    }
+
     public static void main(String[] args) throws Exception {
-        new ObjectsClassification().run(args);
+        new ObjectsClassification1().run(args);
     }
 
 }
