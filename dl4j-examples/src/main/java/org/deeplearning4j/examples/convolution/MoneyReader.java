@@ -1,7 +1,7 @@
 package org.deeplearning4j.examples.convolution;
 
 import org.apache.commons.io.FilenameUtils;
-import org.datavec.api.io.filters.BalancedPathFilter;
+import org.datavec.api.io.filters.RandomPathFilter;
 import org.datavec.api.io.labels.ParentPathLabelGenerator;
 import org.datavec.api.split.FileSplit;
 import org.datavec.api.split.InputSplit;
@@ -19,7 +19,6 @@ import org.deeplearning4j.nn.conf.distribution.Distribution;
 import org.deeplearning4j.nn.conf.distribution.GaussianDistribution;
 import org.deeplearning4j.nn.conf.distribution.NormalDistribution;
 import org.deeplearning4j.nn.conf.inputs.InputType;
-import org.deeplearning4j.nn.conf.inputs.InvalidInputTypeException;
 import org.deeplearning4j.nn.conf.layers.*;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
@@ -39,44 +38,23 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
-import static org.bytedeco.javacpp.opencv_imgproc.COLOR_BGR2YCrCb;
 
-/**
- * Animal Classification
- *
- * Example classification of photos from 4 different animals (bear, duck, deer, turtle).
- *
- * References:
- *  - U.S. Fish and Wildlife Service (animal sample dataset): http://digitalmedia.fws.gov/cdm/
- *  - Tiny ImageNet Classification with CNN: http://cs231n.stanford.edu/reports/leonyao_final.pdf
- *
- * CHALLENGE: Current setup gets low score results. Can you improve the scores? Some approaches:
- *  - Add additional images to the dataset
- *  - Apply more transforms to dataset
- *  - Increase epochs
- *  - Try different model configurations
- *  - Tune by adjusting learning rate, updaters, activation & loss functions, regularization, ...
- */
-
-public class AnimalsClassification {
-    protected static final Logger log = LoggerFactory.getLogger(AnimalsClassification.class);
-    protected static int height = 100;
-    protected static int width = 100;
+public class MoneyReader {
+    protected static final Logger log = LoggerFactory.getLogger(MoneyReader.class);
+    protected static int height = 64;
+    protected static int width = 64;
     protected static int channels = 3;
-    protected static int numExamples = 80;
-    protected static int numLabels = 4;
-    protected static int batchSize = 20;
+    protected static int numLabels = 7;
+    protected static int batchSize = 2;
 
-    protected static long seed = 42;
+    protected static long seed = 725;
     protected static Random rng = new Random(seed);
-    protected static int listenerFreq = 1;
+    protected static int listenerFreq = 100;
     protected static int iterations = 1;
-    protected static int epochs = 50;
-    protected static double splitTrainTest = 0.8;
-    protected static int nCores = 2;
+    protected static int epochs = 2;
+    protected static double splitTrainTest = 0.85;
+    protected static int nCores = 8;
     protected static boolean save = false;
-
-    protected static String modelType = "AlexNet"; // LeNet, AlexNet or Custom but you need to fill it out
 
     public void run(String[] args) throws Exception {
 
@@ -88,15 +66,15 @@ public class AnimalsClassification {
          *  - pathFilter = define additional file load filter to limit size and balance batch content
          **/
         ParentPathLabelGenerator labelMaker = new ParentPathLabelGenerator();
-        File mainPath = new File(System.getProperty("user.dir"), "dl4j-examples/src/main/resources/animals/");
+        File mainPath = new File(System.getProperty("user.dir"), "dl4j-examples/src/main/resources/Money/");
         FileSplit fileSplit = new FileSplit(mainPath, NativeImageLoader.ALLOWED_FORMATS, rng);
-        BalancedPathFilter pathFilter = new BalancedPathFilter(rng, labelMaker, numExamples, numLabels, batchSize);
+        RandomPathFilter pathFilter = new RandomPathFilter(rng, NativeImageLoader.ALLOWED_FORMATS, 0);
 
         /**
          * Data Setup -> train test split
          *  - inputSplit = define train and test split
          **/
-        InputSplit[] inputSplit = fileSplit.sample(pathFilter, splitTrainTest, 1 - splitTrainTest);
+        InputSplit[] inputSplit = fileSplit.sample(pathFilter, splitTrainTest, 1.0 - splitTrainTest);
         InputSplit trainData = inputSplit[0];
         InputSplit testData = inputSplit[1];
 
@@ -118,23 +96,7 @@ public class AnimalsClassification {
 
         log.info("Build model....");
 
-        // Uncomment below to try AlexNet. Note change height and width to at least 100
-//        MultiLayerNetwork network = new AlexNet(height, width, channels, numLabels, seed, iterations).init();
-
-        MultiLayerNetwork network;
-        switch (modelType) {
-            case "LeNet":
-                network = lenetModel();
-                break;
-            case "AlexNet":
-                network = alexnetModel();
-                break;
-            case "custom":
-                network = customModel();
-                break;
-            default:
-                throw new InvalidInputTypeException("Incorrect model provided.");
-        }
+        MultiLayerNetwork network= lenetModel();
         network.init();
         network.setListeners(new ScoreIterationListener(listenerFreq));
 
@@ -150,6 +112,7 @@ public class AnimalsClassification {
 
 
         log.info("Train model....");
+        long timeX = System.currentTimeMillis();
         // Train without transformations
         recordReader.initialize(trainData, null);
         dataIter = new RecordReaderDataSetIterator(recordReader, batchSize, 1, numLabels);
@@ -168,6 +131,10 @@ public class AnimalsClassification {
             trainIter = new MultipleEpochsIterator(epochs, dataIter, nCores);
             network.fit(trainIter);
         }
+
+        long timeY = System.currentTimeMillis();
+
+        log.info("*** Training complete, time: {} ***", (timeY - timeX));
 
         log.info("Evaluate model....");
         recordReader.initialize(testData);
@@ -205,13 +172,14 @@ public class AnimalsClassification {
         return new ConvolutionLayer.Builder(new int[]{5,5}, stride, pad).name(name).nOut(out).biasInit(bias).build();
     }
 
-    private SubsamplingLayer maxPool(String name,  int[] kernel) {
+    private SubsamplingLayer maxPool(String name, int[] kernel) {
         return new SubsamplingLayer.Builder(kernel, new int[]{2,2}).name(name).build();
     }
 
     private DenseLayer fullyConnected(String name, int out, double bias, double dropOut, Distribution dist) {
         return new DenseLayer.Builder().name(name).nOut(out).biasInit(bias).dropOut(dropOut).dist(dist).build();
     }
+
 
     public MultiLayerNetwork lenetModel() {
         /**
@@ -245,70 +213,8 @@ public class AnimalsClassification {
 
     }
 
-    public MultiLayerNetwork alexnetModel() {
-        /**
-         * AlexNet model interpretation based on the original paper ImageNet Classification with Deep Convolutional Neural Networks
-         * and the imagenetExample code referenced.
-         * http://papers.nips.cc/paper/4824-imagenet-classification-with-deep-convolutional-neural-networks.pdf
-         **/
-
-        double nonZeroBias = 1;
-        double dropOut = 0.5;
-
-        MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
-            .seed(seed)
-            .weightInit(WeightInit.DISTRIBUTION)
-            .dist(new NormalDistribution(0.0, 0.01))
-            .activation(Activation.RELU)
-            .updater(Updater.NESTEROVS)
-            .iterations(iterations)
-            .gradientNormalization(GradientNormalization.RenormalizeL2PerLayer) // normalize to prevent vanishing or exploding gradients
-            .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT)
-            .learningRate(1e-2)
-            .biasLearningRate(1e-2*2)
-            .learningRateDecayPolicy(LearningRatePolicy.Step)
-            .lrPolicyDecayRate(0.1)
-            .lrPolicySteps(100000)
-            .regularization(true)
-            .l2(5 * 1e-4)
-            .momentum(0.9)
-            .miniBatch(false)
-            .list()
-            .layer(0, convInit("cnn1", channels, 96, new int[]{11, 11}, new int[]{4, 4}, new int[]{3, 3}, 0))
-            .layer(1, new LocalResponseNormalization.Builder().name("lrn1").build())
-            .layer(2, maxPool("maxpool1", new int[]{3,3}))
-            .layer(3, conv5x5("cnn2", 256, new int[] {1,1}, new int[] {2,2}, nonZeroBias))
-            .layer(4, new LocalResponseNormalization.Builder().name("lrn2").build())
-            .layer(5, maxPool("maxpool2", new int[]{3,3}))
-            .layer(6,conv3x3("cnn3", 384, 0))
-            .layer(7,conv3x3("cnn4", 384, nonZeroBias))
-            .layer(8,conv3x3("cnn5", 256, nonZeroBias))
-            .layer(9, maxPool("maxpool3", new int[]{3,3}))
-            .layer(10, fullyConnected("ffn1", 4096, nonZeroBias, dropOut, new GaussianDistribution(0, 0.005)))
-            .layer(11, fullyConnected("ffn2", 4096, nonZeroBias, dropOut, new GaussianDistribution(0, 0.005)))
-            .layer(12, new OutputLayer.Builder(LossFunctions.LossFunction.NEGATIVELOGLIKELIHOOD)
-                .name("output")
-                .nOut(numLabels)
-                .activation(Activation.SOFTMAX)
-                .build())
-            .backprop(true)
-            .pretrain(false)
-            .setInputType(InputType.convolutional(height, width, channels))
-            .build();
-
-        return new MultiLayerNetwork(conf);
-
-    }
-
-    public static MultiLayerNetwork customModel() {
-        /**
-         * Use this method to build your own custom model.
-         **/
-        return null;
-    }
-
     public static void main(String[] args) throws Exception {
-        new AnimalsClassification().run(args);
+        new MoneyReader().run(args);
     }
 
 }
