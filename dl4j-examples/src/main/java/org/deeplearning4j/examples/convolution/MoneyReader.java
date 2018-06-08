@@ -66,7 +66,7 @@ public class MoneyReader {
          *  - pathFilter = define additional file load filter to limit size and balance batch content
          **/
         ParentPathLabelGenerator labelMaker = new ParentPathLabelGenerator();
-        File mainPath = new File(System.getProperty("user.dir"), "dl4j-examples/src/main/resources/Money/");
+        File mainPath = new File(System.getProperty("user.dir"), "dl4j-examples/src/main/resources2/Money/");
         FileSplit fileSplit = new FileSplit(mainPath, NativeImageLoader.ALLOWED_FORMATS, rng);
         RandomPathFilter pathFilter = new RandomPathFilter(rng, NativeImageLoader.ALLOWED_FORMATS, 0);
 
