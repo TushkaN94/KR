@@ -134,7 +134,7 @@ public class MoneyReader {
 
         long timeY = System.currentTimeMillis();
 
-        log.info("*** Training complete, time: {} ***", (timeY - timeX));
+        log.info("*** Training complete, время: {} ***", (timeY - timeX));
 
         log.info("Evaluate model....");
         recordReader.initialize(testData);
